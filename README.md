@@ -1,3 +1,4 @@
+(Download ca.crt)[https://raw.githubusercontent.com/gouravkrosx/keploy/main/pkg/proxy/asset/ca.crt]
 
 <p align="center">
   <img align="center" src="https://docs.keploy.io/img/keploy-logo-dark.svg?s=200&v=4" height="40%" width="40%"  alt="keploy logo"/>
@@ -11,7 +12,7 @@
 🌟 The must-have tool for developers in the AI-Gen era 🌟
 </p>
 <p align="center">
-
+  
 <a href="CODE_OF_CONDUCT.md" alt="Contributions welcome">
     <img src="https://img.shields.io/badge/Contributions-Welcome-brightgreen?logo=github" /></a>
   <a href="https://github.com/keploy/keploy/actions" alt="Tests">
