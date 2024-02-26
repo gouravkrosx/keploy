@@ -36,6 +36,8 @@ type Yaml struct {
 }
 
 func NewYamlStore(tcsPath string, mockPath string, tcsName string, mockName string, Logger *zap.Logger, tele *telemetry.Telemetry) *Yaml {
+	println("tcsPath:",tcsPath,"||","tcsName:",tcsName)
+	println("mockPath:",mockPath,"||","mockName:",mockName)
 	return &Yaml{
 		TcsPath:  tcsPath,
 		MockPath: mockPath,
@@ -223,7 +225,7 @@ func (ys *Yaml) WriteTestcase(tcRead platform.KindSpecifier, ctx context.Context
 }
 
 func (ys *Yaml) ReadTestcase(path string, lastSeenId platform.KindSpecifier, options platform.KindSpecifier) ([]platform.KindSpecifier, error) {
-
+	println("Test case path:", path)
 	if path == "" {
 		path = ys.TcsPath
 	}

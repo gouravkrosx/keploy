@@ -91,6 +91,9 @@ func (r *Record) GetCmd() *cobra.Command {
 		Example: `sudo -E env PATH=$PATH keploy record -c "/path/to/user/app"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			isDockerCmd := len(os.Getenv("IS_DOCKER_CMD")) > 0
+			if enableTesting {
+				fmt.Println("enableTesting is enabled in record command")
+			}
 
 			path, err := cmd.Flags().GetString("path")
 			if err != nil {
@@ -210,7 +213,8 @@ func (r *Record) GetCmd() *cobra.Command {
 			}
 
 			r.logger.Debug("the ports are", zap.Any("ports", ports))
-			r.recorder.CaptureTraffic(path, proxyPort, appCmd, appContainer, networkName, delay, buildDelay, ports, &filters, enableTele)
+			println("EnableTele:", enableTele)
+			r.recorder.CaptureTraffic(path, proxyPort, appCmd, appContainer, networkName, delay, buildDelay, ports, &filters, enableTele, enableTesting)
 			return nil
 		},
 	}
@@ -234,7 +238,7 @@ func (r *Record) GetCmd() *cobra.Command {
 	recordCmd.Flags().String("config-path", ".", "Path to the local directory where keploy configuration file is stored")
 
 	recordCmd.Flags().Bool("enableTele", true, "Switch for telemetry")
-	recordCmd.Flags().MarkHidden("enableTele")
+	// recordCmd.Flags().MarkHidden("enableTele")
 
 	recordCmd.SilenceUsage = true
 	recordCmd.SilenceErrors = true

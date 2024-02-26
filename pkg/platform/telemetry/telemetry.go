@@ -39,6 +39,7 @@ func NewTelemetry(enabled, offMode bool, store FS, logger *zap.Logger, KeployVer
 }
 
 func (tel *Telemetry) Ping(isTestMode bool) {
+	println("Telemetry enabled:", tel.Enabled)
 	if !tel.Enabled {
 		return
 	}

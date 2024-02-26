@@ -32,6 +32,8 @@ type Root struct {
 }
 
 var debugMode bool
+var enableTesting bool
+var mode string
 
 type colorConsoleEncoder struct {
 	*zapcore.EncoderConfig
@@ -160,7 +162,16 @@ func modifyToSentryLogger(log *zap.Logger, client *sentry.Client) *zap.Logger {
 }
 
 func customTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-	emoji := "\U0001F430" + " Keploy:"
+	emoji := "\U0001F430"
+	if enableTesting {
+		if mode == "record" {
+			emoji += " Keploy(Record):"
+		} else if mode == "test" {
+			emoji += " Keploy(Test):"
+		}
+	} else {
+		emoji += " Keploy:"
+	}
 	enc.AppendString(emoji + " " + t.Format(time.RFC3339) + " ")
 }
 
@@ -220,6 +231,15 @@ func checkForDebugFlag(args []string) bool {
 	return false
 }
 
+func checkForTestBenchFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "--enableTesting" {
+			return true
+		}
+	}
+	return false
+}
+
 func deleteLogs(logger *zap.Logger) {
 	//Check if keploy-log.txt exists
 	_, err := os.Stat("keploy-logs.txt")
@@ -240,6 +260,13 @@ func (r *Root) execute() {
 		Use:     "keploy",
 		Short:   "Keploy CLI",
 		Example: rootExamples,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			subCmd, _, _ := cmd.Find(args)
+			if subCmd != nil && subCmd.Name() != "keploy" {
+				mode = subCmd.Name()
+				println("And the mode is:", mode)
+			}
+		},
 	}
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.SetHelpTemplate(rootCustomHelpTemplate)
@@ -248,6 +275,11 @@ func (r *Root) execute() {
 
 	// Manually parse flags to determine debug mode early
 	debugMode = checkForDebugFlag(os.Args[1:])
+
+	rootCmd.PersistentFlags().BoolVar(&enableTesting, "enableTesting", false, "Enable testing keploy with keploy")
+	//for test bench manually parse flags to determine keploy mode & is test bench enabled.
+	enableTesting = checkForTestBenchFlag(os.Args[1:])
+
 	// Now that flags are parsed, set up the l722ogger
 	r.logger = setupLogger()
 	r.logger = modifyToSentryLogger(r.logger, sentry.CurrentHub().Client())

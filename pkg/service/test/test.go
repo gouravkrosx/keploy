@@ -135,6 +135,27 @@ func (t *tester) InitialiseTest(cfg *TestConfig) (InitialiseTestReturn, error) {
 		}
 	}
 
+	//for testing bench -->
+
+	if cfg.EnableTesting {
+		go func() {
+			kTestPort := 6789
+			kRecordPort := 5678
+
+			kRecordPid, err := hooks.GetPIDByPort(kRecordPort)
+			if err != nil {
+				t.logger.Error("failed to get the keployRecord pid", zap.Error(err))
+			}
+			fmt.Println("keploy record pid :", kRecordPid)
+			t.logger.Debug(fmt.Sprintf("keploytest pid:%v", kRecordPid))
+
+			// sending keploytest binary pid in keployrecord binary to filter out ingress/egress calls related to keploytest binary.
+			returnVal.LoadedHooks.TransmitTestBenchKeployPIDs(0, uint32(kRecordPid))
+			returnVal.LoadedHooks.TransmitTestBenchKeployPorts(0, uint32(kRecordPort))
+			returnVal.LoadedHooks.TransmitTestBenchKeployPorts(1, uint32(kTestPort))
+		}()
+	}
+
 	select {
 	case <-stopper:
 		returnVal.LoadedHooks.Stop(true)
@@ -153,6 +174,12 @@ func (t *tester) InitialiseTest(cfg *TestConfig) (InitialiseTestReturn, error) {
 	// filter the required destination ports
 	if err := returnVal.LoadedHooks.SendPassThroughPorts(cfg.PassThroughPorts); err != nil {
 		return returnVal, err
+	}
+
+	if cfg.EnableTesting {
+		// to get the pid of keployTest binary in keployRecord binary, we have to wait for some time till the proxy server is started
+		// TODO: find other way to filter child process (keployTest) pid in parent process binary (keployRecord)
+		time.Sleep(30 * time.Second) // just for test bench.
 	}
 
 	sessions, err := yaml.ReadSessionIndices(cfg.Path, t.logger)
@@ -193,7 +220,7 @@ func (t *tester) InitialiseTest(cfg *TestConfig) (InitialiseTestReturn, error) {
 	return returnVal, nil
 }
 
-func (t *tester) Test(path string, testReportPath string, appCmd string, options TestOptions, enableTele bool) bool {
+func (t *tester) Test(path string, testReportPath string, appCmd string, options TestOptions, enableTele, enableTesting bool) bool {
 
 	testRes := false
 	result := true
@@ -214,6 +241,7 @@ func (t *tester) Test(path string, testReportPath string, appCmd string, options
 		WithCoverage:       options.WithCoverage,
 		CoverageReportPath: options.CoverageReportPath,
 		EnableTele:         enableTele,
+		EnableTesting:      enableTesting,
 	}
 	initialisedValues, err := t.InitialiseTest(cfg)
 	// Recover from panic and gracfully shutdown
@@ -233,7 +261,7 @@ func (t *tester) Test(path string, testReportPath string, appCmd string, options
 			noiseConfig = LeftJoinNoise(options.GlobalNoise, tsNoise)
 		}
 
-		testRunStatus := t.RunTestSet(sessionIndex, path, testReportPath, appCmd, options.AppContainer, options.AppNetwork, options.Delay, options.BuildDelay, 0, initialisedValues.YamlStore, initialisedValues.LoadedHooks, initialisedValues.TestReportFS, nil, options.ApiTimeout, initialisedValues.Ctx, testcases, noiseConfig, false)
+		testRunStatus := t.RunTestSet(sessionIndex, path, testReportPath, appCmd, options.AppContainer, options.AppNetwork, options.Delay, options.BuildDelay, 0, initialisedValues.YamlStore, initialisedValues.LoadedHooks, initialisedValues.TestReportFS, nil, options.ApiTimeout, initialisedValues.Ctx, testcases, noiseConfig, false, cfg.EnableTesting)
 
 		switch testRunStatus {
 		case models.TestRunStatusAppHalted:
@@ -351,7 +379,7 @@ func (t *tester) InitialiseRunTestSet(cfg *RunTestSetConfig) InitialiseRunTestSe
 		// start user application
 		if !cfg.ServeTest {
 			go func() {
-				if err := cfg.LoadedHooks.LaunchUserApplication(cfg.AppCmd, cfg.AppContainer, cfg.AppNetwork, cfg.Delay, cfg.BuildDelay, false); err != nil {
+				if err := cfg.LoadedHooks.LaunchUserApplication(cfg.AppCmd, cfg.AppContainer, cfg.AppNetwork, cfg.Delay, cfg.BuildDelay, false, cfg.EnableTesting); err != nil {
 					switch err {
 					case hooks.ErrInterrupted:
 						t.logger.Info("keploy terminated user application")
@@ -537,7 +565,7 @@ func (t *tester) FetchTestResults(cfg *FetchTestResultsConfig) models.TestRunSta
 }
 
 // testSet, path, testReportPath, appCmd, appContainer, appNetwork, delay, pid, ys, loadedHooks, testReportFS, testRunChan, apiTimeout, ctx
-func (t *tester) RunTestSet(testSet, path, testReportPath, appCmd, appContainer, appNetwork string, delay uint64, buildDelay time.Duration, pid uint32, ys platform.TestCaseDB, loadedHooks *hooks.Hook, testReportFS platform.TestReportDB, testRunChan chan string, apiTimeout uint64, ctx context.Context, testcases map[string]bool, noiseConfig models.GlobalNoise, serveTest bool) models.TestRunStatus {
+func (t *tester) RunTestSet(testSet, path, testReportPath, appCmd, appContainer, appNetwork string, delay uint64, buildDelay time.Duration, pid uint32, ys platform.TestCaseDB, loadedHooks *hooks.Hook, testReportFS platform.TestReportDB, testRunChan chan string, apiTimeout uint64, ctx context.Context, testcases map[string]bool, noiseConfig models.GlobalNoise, serveTest, enableTesting bool) models.TestRunStatus {
 	cfg := &RunTestSetConfig{
 		TestSet:        testSet,
 		Path:           path,
@@ -555,6 +583,7 @@ func (t *tester) RunTestSet(testSet, path, testReportPath, appCmd, appContainer,
 		ApiTimeout:     apiTimeout,
 		Ctx:            ctx,
 		ServeTest:      serveTest,
+		EnableTesting:  enableTesting,
 	}
 	initialisedValues := t.InitialiseRunTestSet(cfg)
 	if initialisedValues.InitialStatus != "" {
@@ -571,6 +600,8 @@ func (t *tester) RunTestSet(testSet, path, testReportPath, appCmd, appContainer,
 			// stop the user application
 			if !isApplicationStopped && !serveTest {
 				loadedHooks.StopUserApplication()
+			} else {
+				println("application is already stopped...")
 			}
 		}
 	}()
@@ -601,8 +632,17 @@ func (t *tester) RunTestSet(testSet, path, testReportPath, appCmd, appContainer,
 			}
 			readTcsMocks = append(readTcsMocks, tcsmock)
 		}
+
+		// // //sort mocks according to the timestamps
+		// readTcsMocks, err := loadedHooks.GetTcsMocks()
+		// if err != nil {
+		// 	t.logger.Error("failed to sort mocks according to the timestamps")
+		// 	return models.TestRunStatusFailed
+		// }
+
 		readTcsMocks = FilterTcsMocks(tc, readTcsMocks, t.logger)
 		loadedHooks.SetTcsMocks(readTcsMocks)
+
 		if tc.Version == "api.keploy-enterprise.io/v1beta1" {
 			entTcs = append(entTcs, tc.Name)
 		} else if tc.Version != "api.keploy.io/v1beta1" && tc.Version != "api.keploy.io/v1beta2" {
@@ -651,6 +691,10 @@ func (t *tester) RunTestSet(testSet, path, testReportPath, appCmd, appContainer,
 			NoiseConfig:  noiseConfig,
 		}
 		t.SimulateRequest(cfg)
+		if enableTesting {
+			// sleeping for a second before making another request.
+			time.Sleep(time.Second)
+		}
 	}
 	if len(entTcs) > 0 {
 		t.logger.Warn("These testcases have been recorded with Keploy Enterprise, may not work properly with the open-source version", zap.Strings("enterprise mocks:", entTcs))
@@ -718,6 +762,8 @@ func (t *tester) testHttp(tc models.TestCase, actualResponse *models.HttpResp, n
 			headerNoise[a[len(a)-1]] = regexArr
 		}
 	}
+
+	fmt.Printf("Here is the body noise:%v\n", bodyNoise)
 
 	// stores the json body after removing the noise
 	cleanExp, cleanAct := "", ""

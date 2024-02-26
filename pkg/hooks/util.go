@@ -1,9 +1,16 @@
 package hooks
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
+	"os/exec"
+	"strconv"
+	"strings"
+
+	"github.com/cloudflare/cfssl/log"
 )
 
 const mockTable string = "mock"
@@ -26,4 +33,34 @@ func ConvertIPToUint32(ipStr string) (uint32, error) {
 	} else {
 		return 0, errors.New("failed to parse IP address")
 	}
+}
+
+func GetPIDByPort(port int) (int, error) {
+	// Run the lsof command to find the process using the given port
+	cmd := exec.Command("lsof", "-n", "-i", fmt.Sprintf(":%d", port))
+	
+	log.Debug("Getting pid using port", cmd)
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return 0, err
+	}
+
+	// Parse the output of lsof
+	lines := strings.Split(out.String(), "\n")
+	if len(lines) > 1 {
+		fields := strings.Fields(lines[1])
+		if len(fields) >= 2 {
+			pid, err := strconv.Atoi(fields[1])
+			if err != nil {
+				return 0, err
+			}
+			return pid, nil
+		}
+	}
+
+	// If we get here, no process was found using the given port
+	return 0, fmt.Errorf("no process found using port %d", port)
 }

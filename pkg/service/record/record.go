@@ -29,7 +29,7 @@ func NewRecorder(logger *zap.Logger) Recorder {
 	}
 }
 
-func (r *recorder) CaptureTraffic(path string, proxyPort uint32, appCmd, appContainer, appNetwork string, Delay uint64, buildDelay time.Duration, ports []uint, filters *models.Filters, enableTele bool) {
+func (r *recorder) CaptureTraffic(path string, proxyPort uint32, appCmd, appContainer, appNetwork string, Delay uint64, buildDelay time.Duration, ports []uint, filters *models.Filters, enableTele, enableTesting bool) {
 
 	var ps *proxy.ProxySet
 	stopper := make(chan os.Signal, 1)
@@ -102,7 +102,7 @@ func (r *recorder) CaptureTraffic(path string, proxyPort uint32, appCmd, appCont
 		// start user application
 		go func() {
 			stopApplication := false
-			if err := loadedHooks.LaunchUserApplication(appCmd, appContainer, appNetwork, Delay, buildDelay, false); err != nil {
+			if err := loadedHooks.LaunchUserApplication(appCmd, appContainer, appNetwork, Delay, buildDelay, false, enableTesting); err != nil {
 				switch err {
 				case hooks.ErrInterrupted:
 					r.Logger.Info("keploy terminated user application")

@@ -113,6 +113,8 @@ type bpfMapSpecs struct {
 	SocketDataEvents          *ebpf.MapSpec `ebpf:"socket_data_events"`
 	SocketOpenEvents          *ebpf.MapSpec `ebpf:"socket_open_events"`
 	TaskStructMap             *ebpf.MapSpec `ebpf:"task_struct_map"`
+	TbenchFilterPid           *ebpf.MapSpec `ebpf:"tbench_filter_pid"`
+	TbenchFilterPort          *ebpf.MapSpec `ebpf:"tbench_filter_port"`
 }
 
 // bpfObjects contains all objects after they have been loaded into the kernel.
@@ -158,6 +160,8 @@ type bpfMaps struct {
 	SocketDataEvents          *ebpf.Map `ebpf:"socket_data_events"`
 	SocketOpenEvents          *ebpf.Map `ebpf:"socket_open_events"`
 	TaskStructMap             *ebpf.Map `ebpf:"task_struct_map"`
+	TbenchFilterPid           *ebpf.Map `ebpf:"tbench_filter_pid"`
+	TbenchFilterPort          *ebpf.Map `ebpf:"tbench_filter_port"`
 }
 
 func (m *bpfMaps) Close() error {
@@ -186,6 +190,8 @@ func (m *bpfMaps) Close() error {
 		m.SocketDataEvents,
 		m.SocketOpenEvents,
 		m.TaskStructMap,
+		m.TbenchFilterPid,
+		m.TbenchFilterPort,
 	)
 }
 

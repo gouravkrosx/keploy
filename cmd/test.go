@@ -102,6 +102,10 @@ func (t *Test) GetCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			isDockerCmd := len(os.Getenv("IS_DOCKER_CMD")) > 0
 
+			if enableTesting {
+				fmt.Println("enableTesting is enabled in test command")
+			}
+
 			path, err := cmd.Flags().GetString("path")
 			if err != nil {
 				t.logger.Error("failed to read the testcase path input")
@@ -284,7 +288,7 @@ func (t *Test) GetCmd() *cobra.Command {
 				TestsetNoise:       testsetNoise,
 				WithCoverage:       withCoverage,
 				CoverageReportPath: coverageReportPath,
-			}, enableTele)
+			}, enableTele, enableTesting)
 
 			return nil
 		},

@@ -40,7 +40,7 @@ var (
 	ErrFailedUnitTest = errors.New("test failure occured when running keploy tests along with unit tests")
 )
 
-func (h *Hook) LaunchUserApplication(appCmd, appContainer, appNetwork string, Delay uint64, buildDelay time.Duration, isUnitTestIntegration bool) error {
+func (h *Hook) LaunchUserApplication(appCmd, appContainer, appNetwork string, Delay uint64, buildDelay time.Duration, isUnitTestIntegration, enableTesting bool) error {
 	// Supports Native-Linux, Windows (WSL), Lima, Colima
 
 	if appCmd == "" {
@@ -249,6 +249,34 @@ func (h *Hook) LaunchUserApplication(appCmd, appContainer, appNetwork string, De
 
 			// Recover from panic and gracefully shutdown
 			defer h.Recover(pkg.GenerateRandomID())
+
+			if models.GetMode() == models.MODE_RECORD && enableTesting {
+				h.enableTesting = true
+				println("you are using test bench...")
+				go func() {
+					timeout := 30 * time.Second
+					startTime := time.Now()
+
+					for time.Since(startTime) < timeout {
+						kTestPort := 6789
+						kTestPid, err := GetPIDByPort(kTestPort)
+						if err != nil {
+							h.logger.Debug("failed to get the keploytest pid", zap.Error(err))
+						} else {
+							fmt.Println("keploy test pid:", kTestPid)
+							h.logger.Debug(fmt.Sprintf("keploytest pid: %v", kTestPid))
+
+							// sending keploytest binary pid in keployrecord binary to filter out ingress/egress calls related to keploytest binary.
+							h.TransmitTestBenchKeployPIDs(1, uint32(kTestPid))
+							break
+						}
+
+						time.Sleep(500 * time.Millisecond)
+					}
+					println("Exiting loop")
+				}()
+			}
+
 			err := h.runApp(appCmd, isUnitTestIntegration)
 			if err != nil {
 				return err
@@ -481,6 +509,9 @@ func (h *Hook) runApp(appCmd string, isUnitTestIntegration bool) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	h.userAppCmd = cmd
+
+	// Explicitly set the environment for cmd
+	cmd.Env = os.Environ()
 
 	// Run the app as the user who invoked sudo
 	username := os.Getenv("SUDO_USER")

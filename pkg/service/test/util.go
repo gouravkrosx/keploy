@@ -58,6 +58,7 @@ type TestConfig struct {
 	WithCoverage       bool
 	CoverageReportPath string
 	EnableTele         bool
+	EnableTesting      bool
 }
 
 type RunTestSetConfig struct {
@@ -77,6 +78,7 @@ type RunTestSetConfig struct {
 	ApiTimeout     uint64
 	Ctx            context.Context
 	ServeTest      bool
+	EnableTesting  bool
 }
 
 type SimulateRequestConfig struct {

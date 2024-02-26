@@ -47,6 +47,12 @@ type Hook struct {
 	keployServerPort *ebpf.Map
 	passthroughPorts *ebpf.Map
 
+	//specifically for keploy test bench
+	tbenchFilterPort *ebpf.Map
+	tbenchFilterPid  *ebpf.Map
+	enableTesting    bool
+	////
+
 	platform.TestCaseDB
 
 	logger                   *zap.Logger
@@ -189,7 +195,6 @@ func (h *Hook) IsUsrAppTerminateInitiated() bool {
 	return h.userAppShutdownInitiated
 }
 
-
 func (h *Hook) GetConfigMocks() ([]*models.Mock, error) {
 	it, err := h.localDb.getAll(configMockTable, configMockTableIndex)
 	if err != nil {
@@ -226,6 +231,55 @@ func (h *Hook) ResetDeps() int {
 	h.localDb.deleteAll(mockTable, mockTableIndex)
 	return 1
 }
+
+// For keploy test bench
+// filterServerPort is used to send the keploy record binary server port to the ebpf so that the flow first reaches to the keploy record proxy and then keploy test proxy
+// TransmitTestBenchKeployPorts is used to send keploy recordServer(key-0) or testServer(key-1) Port to the ebpf program
+func (h *Hook) TransmitTestBenchKeployPorts(key, port uint32) error {
+
+	var mode string
+	if key == 0 {
+		mode = "record"
+		h.logger.Debug("sending keploy record server port", zap.Any("port", port))
+	} else if key == 1 {
+		mode = "test"
+		h.logger.Debug("sending keploy test server port", zap.Any("port", port))
+	} else {
+		h.logger.Debug("unknown", zap.Any("key", key), zap.Any("port", port))
+		return nil
+	}
+
+	err := h.tbenchFilterPort.Update(uint32(key), &port, ebpf.UpdateAny)
+	if err != nil {
+		h.logger.Error(fmt.Sprintf("failed to send keploy %v server port to the epbf program", mode), zap.Any("Keploy server port", port), zap.Any("error thrown by ebpf map", err.Error()))
+		return err
+	}
+	return nil
+}
+
+// TransmitTestBenchKeployPIDs is used to send keploy recordServer(key-0) or testServer(key-1) Pid to the ebpf program
+func (h *Hook) TransmitTestBenchKeployPIDs(key, pid uint32) error {
+	var mode string
+	if key == 0 {
+		mode = "record"
+		h.logger.Debug("sending keploy record server pid", zap.Any("pid", pid))
+	} else if key == 1 {
+		mode = "test"
+		h.logger.Debug("sending keploy test server pid", zap.Any("pid", pid))
+	} else {
+		h.logger.Debug("unknown", zap.Any("key", key), zap.Any("pid", pid))
+		return nil
+	}
+
+	err := h.tbenchFilterPid.Update(uint32(key), &pid, ebpf.UpdateAny)
+	if err != nil {
+		h.logger.Error(fmt.Sprintf("failed to send keploy %v server pid to the epbf program", mode), zap.Any("Keploy Pid", pid), zap.Any("error thrown by ebpf map", err.Error()))
+		return err
+	}
+	return nil
+}
+
+//---------------------------
 
 // SendPassThroughPorts sends the destination ports of the server which should not be intercepted by keploy proxy.
 func (h *Hook) SendPassThroughPorts(filterPorts []uint) error {
@@ -357,11 +411,12 @@ func (h *Hook) SetKeployModeInKernel(mode uint32) {
 func (h *Hook) killProcessesAndTheirChildren(parentPID int) {
 
 	pids := []int{}
-
+	println("parent pid is:", parentPID)
 	h.findAndCollectChildProcesses(fmt.Sprintf("%d", parentPID), &pids)
 
 	for _, childPID := range pids {
 		if h.userAppCmd.ProcessState == nil {
+			println("killing the child pid:", childPID)
 			err := syscall.Kill(childPID, syscall.SIGTERM)
 			if err != nil {
 				h.logger.Error("failed to set kill child pid", zap.Any("error killing child process", err.Error()))
@@ -457,6 +512,10 @@ func (h *Hook) Stop(forceStop bool) {
 		h.logger.Info("Exiting keploy program gracefully.")
 	}
 
+	if h.enableTesting && models.GetMode() == models.MODE_RECORD {
+		time.Sleep(4 * time.Second) // so that keployRecord gets some time to make the testcases.
+	}
+
 	//deleting kdocker-compose.yaml file if made during the process in case of docker-compose env
 	deleteFileIfExists("kdocker-compose.yaml", h.logger)
 
@@ -545,6 +604,8 @@ func (h *Hook) LoadHooks(appCmd, appContainer string, pid uint32, ctx context.Co
 	h.appPidMap = objs.AppNsPidMap
 	h.keployServerPort = objs.KeployServerPort
 	h.passthroughPorts = objs.PassThroughPorts
+	h.tbenchFilterPid = objs.TbenchFilterPid
+	h.tbenchFilterPort = objs.TbenchFilterPort
 
 	h.stopper = stopper
 	h.objects = objs

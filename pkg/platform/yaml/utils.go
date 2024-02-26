@@ -310,5 +310,6 @@ func ReadSessionIndices(path string, Logger *zap.Logger) ([]string, error) {
 			indices = append(indices, v.Name())
 		}
 	}
+	fmt.Printf("The session indices are:%v\n", indices)
 	return indices, nil
 }

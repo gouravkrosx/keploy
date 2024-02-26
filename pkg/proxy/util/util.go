@@ -201,6 +201,7 @@ func ReadBytes(reader io.Reader) ([]byte, error) {
 	for {
 		buf := make([]byte, 1024)
 		n, err := reader.Read(buf)
+		println("number of bytes read:", n)
 
 		if n > 0 {
 			buffer = append(buffer, buf[:n]...)
@@ -209,21 +210,26 @@ func ReadBytes(reader io.Reader) ([]byte, error) {
 
 		if err != nil {
 			if err == io.EOF {
+				println("EOF came with emptyreads:", emptyReads)
 				emptyReads++
 				if emptyReads >= maxEmptyReads {
+					println("multiple EOFs in a row")
 					return buffer, err // multiple EOFs in a row, probably a true EOF
 				}
 				time.Sleep(time.Millisecond * 100) // sleep before trying again
 				continue
 			}
+			println("returning because getting some different error")
 			return buffer, err
 		}
 
 		if n < len(buf) {
+			println("n is:", n, "len(buf) is:", len(buf))
+			println("Bro are you breaking the loop")
 			break
 		}
 	}
-
+	println("Returning without getting any error...")
 	return buffer, nil
 }
 
