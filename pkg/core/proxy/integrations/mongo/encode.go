@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/errgroup"
 	"io"
 	"net"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"go.keploy.io/server/v2/pkg/core/proxy/util"
 	"go.keploy.io/server/v2/pkg/models"
@@ -271,6 +272,9 @@ func encodeMongo(ctx context.Context, logger *zap.Logger, reqBuf []byte, clientC
 	case <-ctx.Done():
 		return ctx.Err()
 	case err := <-errCh:
+		if err == io.EOF {
+			return nil
+		}
 		return err
 	}
 }
