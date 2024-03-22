@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -29,7 +28,8 @@ import (
 
 var WarningSign = "\U000026A0"
 
-func BindFlagsToViper(logger *zap.Logger, cmd *cobra.Command, viperKeyPrefix string) {
+func BindFlagsToViper(logger *zap.Logger, cmd *cobra.Command, viperKeyPrefix string) error {
+	var bindErr error
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		// Construct the Viper key and the env variable name
 		if viperKeyPrefix == "" {
@@ -43,6 +43,7 @@ func BindFlagsToViper(logger *zap.Logger, cmd *cobra.Command, viperKeyPrefix str
 		err := viper.BindPFlag(viperKey, flag)
 		if err != nil {
 			LogError(logger, err, "failed to bind flag to config")
+			bindErr = err
 		}
 
 		// Tell Viper to also read this flag's value from the corresponding env variable
@@ -50,8 +51,10 @@ func BindFlagsToViper(logger *zap.Logger, cmd *cobra.Command, viperKeyPrefix str
 		logger.Debug("Binding flag to viper", zap.String("viperKey", viperKey), zap.String("envVarName", envVarName))
 		if err != nil {
 			LogError(logger, err, "failed to bind environment variables to config")
+			bindErr = err
 		}
 	})
+	return bindErr
 }
 
 //func ModifyToSentryLogger(ctx context.Context, logger *zap.Logger, client *sentry.Client, configDb *configdb.ConfigDb) *zap.Logger {
@@ -411,7 +414,7 @@ func RunInDocker(ctx context.Context, logger *zap.Logger, args ...string) error 
 	}
 	var quotedArgs []string
 
-	for _, arg := range os.Args[1:] {
+	for _, arg := range args {
 		quotedArgs = append(quotedArgs, strconv.Quote(arg))
 	}
 
@@ -480,7 +483,7 @@ func InterruptProcessTree(cmd *exec.Cmd, logger *zap.Logger, ppid int, sig sysca
 	}
 
 	children = append(children, ppid)
-	sort.Slice(children, func(i, j int) bool { return children[i] > children[j] })
+	// sort.Slice(children, func(i, j int) bool { return children[i] > children[j] })
 	for _, pid := range children {
 		if cmd.ProcessState == nil {
 			err := syscall.Kill(pid, sig)
