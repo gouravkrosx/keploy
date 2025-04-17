@@ -51,6 +51,19 @@ body:
   validations:
     required: false
 
+- type: dropdown
+  id: operating-system
+  attributes:
+    label: "💻 Operating system"
+    description: What OS is your server/device running on?
+    options:
+      - Linux
+      - MacOS
+      - Windows
+      - Something else
+  validations:
+    required: true
+
 - type: textarea
   id: uname
   attributes:
@@ -91,19 +104,6 @@ body:
       - Istio enabled
   validations:
     required: false
-
-- type: dropdown
-  id: operating-system
-  attributes:
-    label: "💻 Operating system"
-    description: What OS is your server/device running on?
-    options:
-      - Linux
-      - MacOS
-      - Windows
-      - Something else
-  validations:
-    required: true
 
 - type: textarea
   id: version
