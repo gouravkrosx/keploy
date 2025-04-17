@@ -65,7 +65,8 @@ body:
   id: docker
   attributes:
     label: 🐳 Docker Info (if applicable)
-    description: Are you running inside Docker? If yes, mention:
+    description: |
+      Are you running inside Docker? If yes, please mention:
       - Docker version
       - Docker Desktop version (if used)
       - Build image
